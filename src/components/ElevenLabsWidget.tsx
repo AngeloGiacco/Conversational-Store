@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 interface ElevenLabsConvaiEvent extends CustomEvent {
 	detail: {
@@ -16,8 +16,29 @@ interface ElevenLabsConvaiEvent extends CustomEvent {
 	};
 }
 
+interface ConversationHistory {
+	hasConversation: boolean;
+	timestamp: number;
+}
+
+const CONVERSATION_KEY = "elevenlabs_conversation_history";
+const EXAMPLE_CONVERSATION = `Agent: "Hi Mati! El here, how can I help you with today?" Mati: "I'm looking for some merch for attendees joining our Summit on 11.11, what options do you have?" Agent: "Limited‑edition caps and totes are great, one‑size fits all and super useful." Mati: "That's great, can I order 600 to be delivered today?" Agent: "I don't have live stock and courier windows, so I can't confirm a same‑day delivery of 600. Want me to connect you to our support team?"`;
+
 export function ElevenLabsWidget() {
 	const router = useRouter();
+	const pathname = usePathname();
+	const [conversationHistory, setConversationHistory] = useState<ConversationHistory | null>(null);
+
+	useEffect(() => {
+		const storedHistory = sessionStorage.getItem(CONVERSATION_KEY);
+		if (storedHistory) {
+			try {
+				setConversationHistory(JSON.parse(storedHistory) as ConversationHistory);
+			} catch (e) {
+				console.error("Failed to parse conversation history:", e);
+			}
+		}
+	}, []);
 
 	useEffect(() => {
 		const script = document.createElement("script");
@@ -32,6 +53,18 @@ export function ElevenLabsWidget() {
 		const widget = document.createElement("elevenlabs-convai");
 		widget.setAttribute("agent-id", "wofv768yFSfi0mlKsELB");
 		widget.setAttribute("variant", "full");
+
+		const isToteBagPage = pathname === "/product/tote-bag";
+		if (isToteBagPage) {
+			widget.setAttribute("autoStart", "true");
+		}
+
+		if (conversationHistory?.hasConversation) {
+			const dynamicVariables = {
+				previous_conversation_context: EXAMPLE_CONVERSATION,
+			};
+			widget.setAttribute("dynamic-variables", JSON.stringify(dynamicVariables));
+		}
 
 		const updateWidgetColors = (widget: HTMLElement) => {
 			const isDarkMode = !document.documentElement.classList.contains("light");
@@ -106,6 +139,15 @@ export function ElevenLabsWidget() {
 			};
 		});
 
+		widget.addEventListener("elevenlabs-convai:conversation-started", () => {
+			const history: ConversationHistory = {
+				hasConversation: true,
+				timestamp: Date.now(),
+			};
+			sessionStorage.setItem(CONVERSATION_KEY, JSON.stringify(history));
+			setConversationHistory(history);
+		});
+
 		wrapper.appendChild(widget);
 		document.body.appendChild(wrapper);
 
@@ -113,7 +155,7 @@ export function ElevenLabsWidget() {
 			wrapper.remove();
 			observer.disconnect();
 		};
-	}, [router]);
+	}, [router, pathname, conversationHistory]);
 
 	return null;
 }
