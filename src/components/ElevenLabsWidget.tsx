@@ -44,7 +44,7 @@ export function ElevenLabsWidget() {
 		if (pathname === "/product/tote-bag" && !conversationHistory?.hasConversation) {
 			const widget = document.querySelector("elevenlabs-convai");
 			if (widget) {
-				const startButton = widget.querySelector('button[title="Start a call"]') as HTMLButtonElement;
+				const startButton = widget.querySelector('button[aria-label="Start a call"]') as HTMLButtonElement;
 				if (startButton) {
 					setTimeout(() => {
 						startButton.click();
