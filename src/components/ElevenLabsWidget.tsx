@@ -41,6 +41,20 @@ export function ElevenLabsWidget() {
 	}, []);
 
 	useEffect(() => {
+		if (pathname === "/product/tote-bag" && !conversationHistory?.hasConversation) {
+			const widget = document.querySelector("elevenlabs-convai");
+			if (widget) {
+				const startButton = widget.querySelector('button[title="Start a call"]') as HTMLButtonElement;
+				if (startButton) {
+					setTimeout(() => {
+						startButton.click();
+					}, 500);
+				}
+			}
+		}
+	}, [pathname, conversationHistory]);
+
+	useEffect(() => {
 		const script = document.createElement("script");
 		script.src = "https://elevenlabs.io/convai-widget/index.js";
 		script.async = true;
@@ -51,13 +65,8 @@ export function ElevenLabsWidget() {
 		wrapper.className = "desktop";
 
 		const widget = document.createElement("elevenlabs-convai");
-		widget.setAttribute("agent-id", "wofv768yFSfi0mlKsELB");
+		widget.setAttribute("agent-id", "agent_4201k958dh00ftfvmezvfjkcqzmx");
 		widget.setAttribute("variant", "full");
-
-		const isToteBagPage = pathname === "/product/tote-bag";
-		if (isToteBagPage) {
-			widget.setAttribute("autoStart", "true");
-		}
 
 		if (conversationHistory?.hasConversation) {
 			const dynamicVariables = {
@@ -155,7 +164,7 @@ export function ElevenLabsWidget() {
 			wrapper.remove();
 			observer.disconnect();
 		};
-	}, [router, pathname, conversationHistory]);
+	}, [router, conversationHistory]);
 
 	return null;
 }
