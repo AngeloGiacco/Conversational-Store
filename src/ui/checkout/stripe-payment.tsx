@@ -130,7 +130,7 @@ const PaymentForm = ({
 	const pendingAutofillRef = useRef<AutofillCheckoutData | null>(null);
 
 	// Expose global function for autofill
-	useDidUpdate(() => {
+	useEffect(() => {
 		if (typeof window !== "undefined") {
 			const windowWithFill = window as Window & {
 				fillCheckoutDetails?: (data: AutofillCheckoutData) => void;
@@ -152,6 +152,7 @@ const PaymentForm = ({
 				console.log("[Autofill] Setting autofill data state");
 				setAutofillData(data);
 			};
+			console.log("[Autofill] Global function window.fillCheckoutDetails registered successfully");
 		}
 		return () => {
 			if (typeof window !== "undefined") {
@@ -159,6 +160,7 @@ const PaymentForm = ({
 					fillCheckoutDetails?: (data: AutofillCheckoutData) => void;
 				};
 				delete windowWithFill.fillCheckoutDetails;
+				console.log("[Autofill] Global function window.fillCheckoutDetails unregistered");
 			}
 		};
 	}, []);
