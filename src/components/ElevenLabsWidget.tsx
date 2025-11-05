@@ -169,7 +169,7 @@ export function ElevenLabsWidget() {
 								postalCode: "W1F 0UW",
 								country: "GB",
 							},
-							phone: "+442025111111",
+							phone: "+44202511111",
 						});
 						return {
 							success: true,
