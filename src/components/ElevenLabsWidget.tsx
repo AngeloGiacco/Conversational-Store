@@ -26,7 +26,6 @@ const EXAMPLE_CONVERSATION = `Agent: "Hi Mati! El here, how can I help you with 
 
 export function ElevenLabsWidget() {
 	const router = useRouter();
-	const pathname = usePathname();
 	const [conversationHistory, setConversationHistory] = useState<ConversationHistory | null>(null);
 
 	useEffect(() => {
