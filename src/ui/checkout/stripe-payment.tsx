@@ -48,6 +48,20 @@ export const StripePayment = ({
 	);
 };
 
+export interface AutofillCheckoutData {
+	email?: string;
+	name?: string;
+	address?: {
+		line1?: string;
+		line2?: string;
+		city?: string;
+		state?: string;
+		postalCode?: string;
+		country?: string;
+	};
+	phone?: string;
+}
+
 const PaymentForm = ({
 	shippingRates,
 	cartShippingRateId,
@@ -97,6 +111,8 @@ const PaymentForm = ({
 
 	const [sameAsShipping, setSameAsShipping] = useState(true);
 	const [email, setEmail] = useState("");
+	const [autofillData, setAutofillData] = useState<AutofillCheckoutData | null>(null);
+	const [remountKey, setRemountKey] = useState(0);
 
 	const stripe = useStripe();
 	const router = useRouter();
@@ -106,6 +122,30 @@ const PaymentForm = ({
 	const elements = useElements();
 	const elementsRef = useRef(elements);
 	elementsRef.current = elements;
+
+	// Expose global function for autofill
+	useDidUpdate(() => {
+		if (typeof window !== "undefined") {
+			const windowWithFill = window as Window & {
+				fillCheckoutDetails?: (data: AutofillCheckoutData) => void;
+			};
+			windowWithFill.fillCheckoutDetails = (data: AutofillCheckoutData) => {
+				setAutofillData(data);
+				setRemountKey((prev) => prev + 1);
+				if (data.email) {
+					setEmail(data.email);
+				}
+			};
+		}
+		return () => {
+			if (typeof window !== "undefined") {
+				const windowWithFill = window as Window & {
+					fillCheckoutDetails?: (data: AutofillCheckoutData) => void;
+				};
+				delete windowWithFill.fillCheckoutDetails;
+			}
+		};
+	}, []);
 
 	useDidUpdate(() => {
 		transition(async () => {
@@ -231,6 +271,16 @@ const PaymentForm = ({
 	return (
 		<form onSubmit={handleSubmit} className="grid gap-4">
 			<LinkAuthenticationElement
+				key={`link-${remountKey}`}
+				options={
+					autofillData?.email
+						? {
+								defaultValues: {
+									email: autofillData.email,
+								},
+							}
+						: undefined
+				}
 				onReady={() => setIsLinkAuthenticationReady(true)}
 				onChange={(event) => {
 					if (event.complete) {
@@ -239,10 +289,25 @@ const PaymentForm = ({
 				}}
 			/>
 			<AddressElement
+				key={`address-${remountKey}`}
 				options={{
 					mode: "shipping",
 					fields: { phone: "always" },
 					validation: { phone: { required: "auto" } },
+					...(autofillData && {
+						defaultValues: {
+							name: autofillData.name ?? "",
+							address: {
+								line1: autofillData.address?.line1 ?? "",
+								line2: autofillData.address?.line2 ?? "",
+								city: autofillData.address?.city ?? "",
+								state: autofillData.address?.state ?? "",
+								postal_code: autofillData.address?.postalCode ?? "",
+								country: autofillData.address?.country ?? "",
+							},
+							phone: autofillData.phone ?? "",
+						},
+					}),
 				}}
 				onChange={(e) => {
 					// do not override billing address if it's manually edited
@@ -326,6 +391,7 @@ const PaymentForm = ({
 			)}
 
 			<PaymentElement
+				key={`payment-${remountKey}`}
 				onReady={() => setIsPaymentReady(true)}
 				options={{
 					fields: {

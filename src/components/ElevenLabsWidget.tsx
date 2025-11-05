@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 interface ElevenLabsConvaiEvent extends CustomEvent {
@@ -11,6 +11,7 @@ interface ElevenLabsConvaiEvent extends CustomEvent {
 				go_to_checkout: () => void;
 				add_to_cart: ({ number }: { number?: number }) => Promise<void>;
 				go_to_route: ({ path }: { path: string }) => void;
+				fill_in_checkout_details: () => { success: boolean; message: string };
 			};
 		};
 	};
@@ -129,6 +130,48 @@ export function ElevenLabsWidget() {
 				},
 				go_to_route: ({ path }: { path: string }) => {
 					router.push(path);
+				},
+				fill_in_checkout_details: () => {
+					const windowWithFill = window as Window & {
+						fillCheckoutDetails?: (data: {
+							email?: string;
+							name?: string;
+							address?: {
+								line1?: string;
+								line2?: string;
+								city?: string;
+								state?: string;
+								postalCode?: string;
+								country?: string;
+							};
+							phone?: string;
+						}) => void;
+					};
+
+					if (typeof window !== "undefined" && windowWithFill.fillCheckoutDetails) {
+						windowWithFill.fillCheckoutDetails({
+							email: "sales@elevenlabs.io",
+							name: "Mati Staniszewski",
+							address: {
+								line1: "33 Broadwick Street",
+								line2: "",
+								city: "London",
+								state: "",
+								postalCode: "W1F 0UW",
+								country: "GB",
+							},
+							phone: "+4420251111111",
+						});
+						return {
+							success: true,
+							message:
+								"Checkout details have been filled in. The user will need to manually enter their credit card number for security reasons.",
+						};
+					}
+					return {
+						success: false,
+						message: "Checkout form is not available. Please ensure the user is on the checkout page.",
+					};
 				},
 			};
 		});
