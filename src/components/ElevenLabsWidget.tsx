@@ -23,7 +23,7 @@ interface ConversationHistory {
 }
 
 const CONVERSATION_KEY = "elevenlabs_conversation_history";
-const EXAMPLE_CONVERSATION = `Agent: "Hi Mati! El here, how can I help you with today?" Mati: "I'm looking for some merch for attendees joining our Summit on 11.11, what options do you have?" Agent: "Limited‑edition caps and totes are great, one‑size fits all and super useful." Mati: "That's great, can I order 600 to be delivered today?" Agent: "I don't have live stock and courier windows, so I can't confirm a same‑day delivery of 600. Want me to connect you to our support team?"`;
+const EXAMPLE_CONVERSATION = `n/a`;
 
 export function ElevenLabsWidget() {
 	const router = useRouter();
