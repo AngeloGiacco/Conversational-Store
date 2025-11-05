@@ -114,6 +114,48 @@ export async function setQuantity({
 	await Commerce.cartSetQuantity({ productId, cartId, quantity });
 }
 
+export async function addMultipleToCartAction(productId: string, quantity: number) {
+	const cart = await getCartFromCookiesAction();
+
+	// If no cart exists, create one by adding the first item
+	if (!cart) {
+		const newCart = await Commerce.cartAdd({ productId });
+		if (!newCart) {
+			throw new Error("Failed to create cart");
+		}
+		if (quantity > 1) {
+			await Commerce.cartSetQuantity({ productId, cartId: newCart.id, quantity });
+		}
+		await setCartCookieJson({
+			id: newCart.id,
+			linesCount: Commerce.cartCount(newCart.metadata),
+		});
+		revalidateTag(`cart-${newCart.id}`);
+		return;
+	}
+
+	// Find current quantity for this product
+	const currentLine = cart.lines.find(line => line.product.id === productId);
+	const currentQty = currentLine?.quantity || 0;
+	const newQty = currentQty + quantity;
+
+	// Set the new quantity in one operation
+	await Commerce.cartSetQuantity({
+		productId,
+		cartId: cart.cart.id,
+		quantity: newQty
+	});
+
+	const updatedCart = await Commerce.cartGet(cart.cart.id);
+	if (updatedCart) {
+		await setCartCookieJson({
+			id: updatedCart.cart.id,
+			linesCount: Commerce.cartCount(updatedCart.cart.metadata),
+		});
+		revalidateTag(`cart-${updatedCart.cart.id}`);
+	}
+}
+
 export async function commerceGPTRevalidateAction() {
 	const cart = await getCartCookieJson();
 	if (cart) {

@@ -1,11 +1,11 @@
 "use client";
-import { addToCartAction } from "@/actions/cart-actions";
+import { addToCartAction, addMultipleToCartAction } from "@/actions/cart-actions";
 import { Button } from "@/components/ui/button";
 import { useCartModal } from "@/context/cart-modal";
 import { useTranslations } from "@/i18n/client";
 import { cn } from "@/lib/utils";
 import { Loader2Icon } from "lucide-react";
-import { useTransition } from "react";
+import { useEffect, useTransition } from "react";
 
 export const AddToCartButton = ({
 	productId,
@@ -20,6 +20,20 @@ export const AddToCartButton = ({
 	const [pending, startTransition] = useTransition();
 	const isDisabled = disabled || pending;
 	const { setOpen } = useCartModal();
+
+	// Expose a global function for bulk adding to cart
+	useEffect(() => {
+		(window as any).bulkAddToCart = async (quantity: number) => {
+			setOpen(true);
+			startTransition(async () => {
+				await addMultipleToCartAction(productId, quantity);
+			});
+		};
+
+		return () => {
+			delete (window as any).bulkAddToCart;
+		};
+	}, [productId, setOpen]);
 
 	return (
 		<Button
