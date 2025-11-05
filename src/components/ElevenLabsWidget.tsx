@@ -117,15 +117,23 @@ export function ElevenLabsWidget() {
 					router.push("/cart");
 				},
 				add_to_cart: async ({ number = 1 }) => {
-					const addToCartButton = document.getElementById("button-add-to-cart");
-					if (addToCartButton instanceof HTMLButtonElement) {
-						const clicks = Array(number).fill(null);
-						await Promise.all(
-							clicks.map(() => {
+					// Use the global bulk add function if available (for bulk operations)
+					// Otherwise fall back to clicking the button multiple times
+					const windowWithBulkAdd = window as Window & { bulkAddToCart?: (quantity: number) => Promise<void> };
+
+					if (windowWithBulkAdd.bulkAddToCart) {
+						// Direct bulk addition - single API call
+						await windowWithBulkAdd.bulkAddToCart(number);
+					} else {
+						// Fallback to button clicking
+						const addToCartButton = document.getElementById("button-add-to-cart");
+						if (addToCartButton instanceof HTMLButtonElement) {
+							for (let i = 0; i < number; i++) {
 								addToCartButton.click();
-								return new Promise((resolve) => setTimeout(resolve, 150));
-							}),
-						);
+								await new Promise((resolve) => setTimeout(resolve, 100));
+							}
+						}
+
 					}
 				},
 				go_to_route: ({ path }: { path: string }) => {
