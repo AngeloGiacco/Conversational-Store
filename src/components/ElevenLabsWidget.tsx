@@ -159,7 +159,7 @@ export function ElevenLabsWidget() {
 
 					if (typeof window !== "undefined" && windowWithFill.fillCheckoutDetails) {
 						windowWithFill.fillCheckoutDetails({
-							email: "mati@elevenlabs.io",
+							email: "founders@elevenlabs.io",
 							name: "Mati Staniszewski",
 							address: {
 								line1: "33 Broadwick Street",
