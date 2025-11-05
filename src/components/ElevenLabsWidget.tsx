@@ -19,7 +19,6 @@ interface ElevenLabsConvaiEvent extends CustomEvent {
 interface ConversationHistory {
 	hasConversation: boolean;
 	timestamp: number;
-	startingPage?: string;
 }
 
 const CONVERSATION_KEY = "elevenlabs_conversation_history";
@@ -29,7 +28,6 @@ export function ElevenLabsWidget() {
 	const router = useRouter();
 	const pathname = usePathname();
 	const [conversationHistory, setConversationHistory] = useState<ConversationHistory | null>(null);
-	const [widgetMounted, setWidgetMounted] = useState(false);
 
 	useEffect(() => {
 		const storedHistory = sessionStorage.getItem(CONVERSATION_KEY);
@@ -56,17 +54,12 @@ export function ElevenLabsWidget() {
 		widget.setAttribute("agent-id", "agent_1701k88exma8e6hbs3t77nt8wmbq");
 		widget.setAttribute("variant", "full");
 
-		// Always set dynamic variables - check if previous context is valid
-		const FIVE_MINUTES_MS = 5 * 60 * 1000;
-		const shouldIncludePreviousContext =
-			conversationHistory?.hasConversation &&
-			conversationHistory.startingPage === "/product/tote-bag" &&
-			Date.now() - conversationHistory.timestamp <= FIVE_MINUTES_MS;
-
-		const dynamicVariables = {
-			previous_conversation_context: shouldIncludePreviousContext ? EXAMPLE_CONVERSATION : "n/a",
-		};
-		widget.setAttribute("dynamic-variables", JSON.stringify(dynamicVariables));
+		if (conversationHistory?.hasConversation) {
+			const dynamicVariables = {
+				previous_conversation_context: EXAMPLE_CONVERSATION,
+			};
+			widget.setAttribute("dynamic-variables", JSON.stringify(dynamicVariables));
+		}
 
 		const updateWidgetColors = (widget: HTMLElement) => {
 			const isDarkMode = !document.documentElement.classList.contains("light");
@@ -145,7 +138,6 @@ export function ElevenLabsWidget() {
 			const history: ConversationHistory = {
 				hasConversation: true,
 				timestamp: Date.now(),
-				startingPage: pathname,
 			};
 			sessionStorage.setItem(CONVERSATION_KEY, JSON.stringify(history));
 			setConversationHistory(history);
@@ -154,53 +146,11 @@ export function ElevenLabsWidget() {
 		wrapper.appendChild(widget);
 		document.body.appendChild(wrapper);
 
-		const checkWidgetMounted = () => {
-			// Access shadowRoot to find button inside web component
-			const shadowRoot = widget.shadowRoot;
-			if (shadowRoot) {
-				const startButton = shadowRoot.querySelector('button[aria-label="Start a call"]');
-				if (startButton) {
-					setWidgetMounted(true);
-					return true;
-				}
-			}
-			return false;
-		};
-
-		let pollCount = 0;
-		const maxPolls = 20;
-		const pollInterval = setInterval(() => {
-			if (checkWidgetMounted() || pollCount >= maxPolls) {
-				clearInterval(pollInterval);
-			}
-			pollCount++;
-		}, 100);
-
 		return () => {
-			clearInterval(pollInterval);
 			wrapper.remove();
 			observer.disconnect();
-			setWidgetMounted(false);
 		};
-	}, [router, conversationHistory, pathname]);
-
-	useEffect(() => {
-		if (widgetMounted && pathname === "/product/tote-bag" && !conversationHistory?.hasConversation) {
-			const widget = document.querySelector("elevenlabs-convai");
-			if (widget) {
-				// Access shadowRoot to find button inside web component
-				const shadowRoot = widget.shadowRoot;
-				if (shadowRoot) {
-					const startButton = shadowRoot.querySelector(
-						'button[aria-label="Start a call"]',
-					) as HTMLButtonElement;
-					if (startButton) {
-						startButton.click();
-					}
-				}
-			}
-		}
-	}, [widgetMounted, pathname, conversationHistory]);
+	}, [router, conversationHistory]);
 
 	return null;
 }
