@@ -28,6 +28,7 @@ export function ElevenLabsWidget() {
 	const router = useRouter();
 	const pathname = usePathname();
 	const [conversationHistory, setConversationHistory] = useState<ConversationHistory | null>(null);
+	const [widgetMounted, setWidgetMounted] = useState(false);
 
 	useEffect(() => {
 		const storedHistory = sessionStorage.getItem(CONVERSATION_KEY);
@@ -39,20 +40,6 @@ export function ElevenLabsWidget() {
 			}
 		}
 	}, []);
-
-	useEffect(() => {
-		if (pathname === "/product/tote-bag" && !conversationHistory?.hasConversation) {
-			const widget = document.querySelector("elevenlabs-convai");
-			if (widget) {
-				const startButton = widget.querySelector('button[aria-label="Start a call"]') as HTMLButtonElement;
-				if (startButton) {
-					setTimeout(() => {
-						startButton.click();
-					}, 500);
-				}
-			}
-		}
-	}, [pathname, conversationHistory]);
 
 	useEffect(() => {
 		const script = document.createElement("script");
@@ -160,11 +147,43 @@ export function ElevenLabsWidget() {
 		wrapper.appendChild(widget);
 		document.body.appendChild(wrapper);
 
+		const checkWidgetMounted = () => {
+			const startButton = widget.querySelector('button[aria-label="Start a call"]');
+			if (startButton) {
+				setWidgetMounted(true);
+				return true;
+			}
+			return false;
+		};
+
+		let pollCount = 0;
+		const maxPolls = 20;
+		const pollInterval = setInterval(() => {
+			if (checkWidgetMounted() || pollCount >= maxPolls) {
+				clearInterval(pollInterval);
+			}
+			pollCount++;
+		}, 100);
+
 		return () => {
+			clearInterval(pollInterval);
 			wrapper.remove();
 			observer.disconnect();
+			setWidgetMounted(false);
 		};
-	}, [router, conversationHistory]);
+	}, [router, conversationHistory, pathname]);
+
+	useEffect(() => {
+		if (widgetMounted && pathname === "/product/tote-bag" && !conversationHistory?.hasConversation) {
+			const widget = document.querySelector("elevenlabs-convai");
+			if (widget) {
+				const startButton = widget.querySelector('button[aria-label="Start a call"]') as HTMLButtonElement;
+				if (startButton) {
+					startButton.click();
+				}
+			}
+		}
+	}, [widgetMounted, pathname, conversationHistory]);
 
 	return null;
 }
