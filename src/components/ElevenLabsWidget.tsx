@@ -119,7 +119,9 @@ export function ElevenLabsWidget() {
 				add_to_cart: async ({ number = 1 }) => {
 					// Use the global bulk add function if available (for bulk operations)
 					// Otherwise fall back to clicking the button multiple times
-					const windowWithBulkAdd = window as Window & { bulkAddToCart?: (quantity: number) => Promise<void> };
+					const windowWithBulkAdd = window as Window & {
+						bulkAddToCart?: (quantity: number) => Promise<void>;
+					};
 
 					if (windowWithBulkAdd.bulkAddToCart) {
 						// Direct bulk addition - single API call
@@ -133,7 +135,6 @@ export function ElevenLabsWidget() {
 								await new Promise((resolve) => setTimeout(resolve, 100));
 							}
 						}
-
 					}
 				},
 				go_to_route: ({ path }: { path: string }) => {
@@ -158,7 +159,7 @@ export function ElevenLabsWidget() {
 
 					if (typeof window !== "undefined" && windowWithFill.fillCheckoutDetails) {
 						windowWithFill.fillCheckoutDetails({
-							email: "sales@elevenlabs.io",
+							email: "founders@elevenlabs.io",
 							name: "Mati Staniszewski",
 							address: {
 								line1: "33 Broadwick Street",
@@ -168,7 +169,7 @@ export function ElevenLabsWidget() {
 								postalCode: "W1F 0UW",
 								country: "GB",
 							},
-							phone: "+4420251111111",
+							phone: "+44202511111",
 						});
 						return {
 							success: true,

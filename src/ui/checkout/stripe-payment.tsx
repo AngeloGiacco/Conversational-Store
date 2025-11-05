@@ -25,7 +25,7 @@ import {
 import type * as Commerce from "commerce-kit";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type ChangeEvent, type FormEventHandler, useRef, useState, useTransition } from "react";
+import { type ChangeEvent, type FormEventHandler, useEffect, useRef, useState, useTransition } from "react";
 
 export const StripePayment = ({
 	shippingRateId,
@@ -123,19 +123,36 @@ const PaymentForm = ({
 	const elementsRef = useRef(elements);
 	elementsRef.current = elements;
 
+	// Track ready state with refs to avoid race conditions
+	const linkAuthReadyRef = useRef(false);
+	const addressReadyRef = useRef(false);
+	const retryCountRef = useRef(0);
+	const pendingAutofillRef = useRef<AutofillCheckoutData | null>(null);
+
 	// Expose global function for autofill
-	useDidUpdate(() => {
+	useEffect(() => {
 		if (typeof window !== "undefined") {
 			const windowWithFill = window as Window & {
 				fillCheckoutDetails?: (data: AutofillCheckoutData) => void;
 			};
 			windowWithFill.fillCheckoutDetails = (data: AutofillCheckoutData) => {
-				setAutofillData(data);
-				setRemountKey((prev) => prev + 1);
+				console.log("[Autofill] fillCheckoutDetails called with data:", data);
+				console.log("[Autofill] Current ready states - LinkAuth:", linkAuthReadyRef.current, "Address:", addressReadyRef.current);
+
+				// Store the autofill data
+				pendingAutofillRef.current = data;
+
+				// Update email state immediately
 				if (data.email) {
+					console.log("[Autofill] Setting email:", data.email);
 					setEmail(data.email);
 				}
+
+				// Update autofill data state - this will trigger useEffect
+				console.log("[Autofill] Setting autofill data state");
+				setAutofillData(data);
 			};
+			console.log("[Autofill] Global function window.fillCheckoutDetails registered successfully");
 		}
 		return () => {
 			if (typeof window !== "undefined") {
@@ -143,9 +160,63 @@ const PaymentForm = ({
 					fillCheckoutDetails?: (data: AutofillCheckoutData) => void;
 				};
 				delete windowWithFill.fillCheckoutDetails;
+				console.log("[Autofill] Global function window.fillCheckoutDetails unregistered");
 			}
 		};
 	}, []);
+
+	// Handle autofill data changes with retry logic
+	useEffect(() => {
+		if (!autofillData) {
+			console.log("[Autofill] autofillData is null/undefined, skipping");
+			return;
+		}
+
+		console.log("[Autofill] autofillData changed:", JSON.stringify(autofillData));
+		console.log("[Autofill] Ready states at remount - LinkAuth:", linkAuthReadyRef.current, "Address:", addressReadyRef.current);
+		console.log("[Autofill] Retry count:", retryCountRef.current);
+
+		// Reset ready states since we're remounting
+		linkAuthReadyRef.current = false;
+		addressReadyRef.current = false;
+
+		// Trigger remount - this will cause a re-render with new autofillData
+		setRemountKey((prev) => {
+			const newKey = prev + 1;
+			console.log("[Autofill] Remount key updated to:", newKey);
+			return newKey;
+		});
+
+		// Schedule a retry check after Elements have had time to mount
+		const maxRetries = 3;
+		if (retryCountRef.current < maxRetries) {
+			retryCountRef.current += 1;
+			console.log("[Autofill] Scheduling retry check (attempt", retryCountRef.current, "of", maxRetries, ")");
+
+			// Use increasing delays for retries
+			const delays = [150, 350, 600];
+			const delay = delays[retryCountRef.current - 1] || 600;
+
+			const timeoutId = setTimeout(() => {
+				console.log("[Autofill] Retry check executing. Elements ready? LinkAuth:", linkAuthReadyRef.current, "Address:", addressReadyRef.current);
+
+				if (pendingAutofillRef.current && (!linkAuthReadyRef.current || !addressReadyRef.current)) {
+					console.log("[Autofill] Retry triggered - forcing remount with fresh data");
+					// Force a new object reference to trigger re-render
+					setAutofillData({ ...pendingAutofillRef.current });
+				} else {
+					console.log("[Autofill] Elements are ready or no pending data, resetting retry count");
+					retryCountRef.current = 0; // Reset retry count on success
+				}
+			}, delay);
+
+			// Cleanup timeout if component unmounts or autofillData changes again
+			return () => clearTimeout(timeoutId);
+		} else {
+			console.warn("[Autofill] Max retries reached. Elements may not be filling properly.");
+			retryCountRef.current = 0; // Reset for next attempt
+		}
+	}, [autofillData]);
 
 	useDidUpdate(() => {
 		transition(async () => {
@@ -268,6 +339,9 @@ const PaymentForm = ({
 		}
 	};
 
+	// Log autofillData before render
+	console.log("[Autofill] Rendering with autofillData:", autofillData, "remountKey:", remountKey);
+
 	return (
 		<form onSubmit={handleSubmit} className="grid gap-4">
 			<LinkAuthenticationElement
@@ -281,9 +355,15 @@ const PaymentForm = ({
 							}
 						: undefined
 				}
-				onReady={() => setIsLinkAuthenticationReady(true)}
+				onReady={() => {
+					console.log("[Autofill] LinkAuthenticationElement ready. Email defaultValue:", autofillData?.email);
+					console.log("[Autofill] Pending autofill data:", pendingAutofillRef.current);
+					linkAuthReadyRef.current = true;
+					setIsLinkAuthenticationReady(true);
+				}}
 				onChange={(event) => {
 					if (event.complete) {
+						console.log("[Autofill] LinkAuthenticationElement changed to:", event.value.email);
 						setEmail(event.value.email);
 					}
 				}}
@@ -319,6 +399,7 @@ const PaymentForm = ({
 						return;
 					}
 
+					console.log("[Autofill] AddressElement changed:", e.value);
 					setBillingAddressValues({
 						name: e.value.name,
 						city: e.value.address.city,
@@ -332,7 +413,16 @@ const PaymentForm = ({
 						email: email,
 					});
 				}}
-				onReady={() => setIsAddressReady(true)}
+				onReady={() => {
+					console.log("[Autofill] AddressElement ready. DefaultValues from state:", {
+						name: autofillData?.name,
+						address: autofillData?.address,
+						phone: autofillData?.phone,
+					});
+					console.log("[Autofill] Pending autofill data:", pendingAutofillRef.current);
+					addressReadyRef.current = true;
+					setIsAddressReady(true);
+				}}
 			/>
 
 			{readyToRender && !allProductsDigital && (
