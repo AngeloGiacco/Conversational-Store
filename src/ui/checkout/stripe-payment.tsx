@@ -25,7 +25,7 @@ import {
 import type * as Commerce from "commerce-kit";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type ChangeEvent, type FormEventHandler, useRef, useState, useTransition } from "react";
+import { type ChangeEvent, type FormEventHandler, useEffect, useRef, useState, useTransition } from "react";
 
 export const StripePayment = ({
 	shippingRateId,
@@ -123,6 +123,12 @@ const PaymentForm = ({
 	const elementsRef = useRef(elements);
 	elementsRef.current = elements;
 
+	// Track ready state with refs to avoid race conditions
+	const linkAuthReadyRef = useRef(false);
+	const addressReadyRef = useRef(false);
+	const retryCountRef = useRef(0);
+	const pendingAutofillRef = useRef<AutofillCheckoutData | null>(null);
+
 	// Expose global function for autofill
 	useDidUpdate(() => {
 		if (typeof window !== "undefined") {
@@ -130,11 +136,21 @@ const PaymentForm = ({
 				fillCheckoutDetails?: (data: AutofillCheckoutData) => void;
 			};
 			windowWithFill.fillCheckoutDetails = (data: AutofillCheckoutData) => {
-				setAutofillData(data);
-				setRemountKey((prev) => prev + 1);
+				console.log("[Autofill] fillCheckoutDetails called with data:", data);
+				console.log("[Autofill] Current ready states - LinkAuth:", linkAuthReadyRef.current, "Address:", addressReadyRef.current);
+
+				// Store the autofill data
+				pendingAutofillRef.current = data;
+
+				// Update email state immediately
 				if (data.email) {
+					console.log("[Autofill] Setting email:", data.email);
 					setEmail(data.email);
 				}
+
+				// Update autofill data state - this will trigger useEffect
+				console.log("[Autofill] Setting autofill data state");
+				setAutofillData(data);
 			};
 		}
 		return () => {
@@ -146,6 +162,52 @@ const PaymentForm = ({
 			}
 		};
 	}, []);
+
+	// Handle autofill data changes with retry logic
+	useEffect(() => {
+		if (!autofillData) {
+			return;
+		}
+
+		console.log("[Autofill] autofillData changed, triggering remount");
+		console.log("[Autofill] Ready states at remount - LinkAuth:", linkAuthReadyRef.current, "Address:", addressReadyRef.current);
+		console.log("[Autofill] Retry count:", retryCountRef.current);
+
+		// Reset ready states since we're remounting
+		linkAuthReadyRef.current = false;
+		addressReadyRef.current = false;
+
+		// Trigger remount
+		setRemountKey((prev) => {
+			const newKey = prev + 1;
+			console.log("[Autofill] Remount key updated to:", newKey);
+			return newKey;
+		});
+
+		// If elements aren't ready yet and we haven't exceeded retry limit, schedule a retry
+		const maxRetries = 3;
+		if (retryCountRef.current < maxRetries) {
+			retryCountRef.current += 1;
+			console.log("[Autofill] Scheduling retry check (attempt", retryCountRef.current, "of", maxRetries, ")");
+
+			// Use increasing delays for retries
+			const delays = [100, 300, 500];
+			const delay = delays[retryCountRef.current - 1] || 500;
+
+			setTimeout(() => {
+				if (pendingAutofillRef.current && (!linkAuthReadyRef.current || !addressReadyRef.current)) {
+					console.log("[Autofill] Retry triggered - elements still not ready. LinkAuth:", linkAuthReadyRef.current, "Address:", addressReadyRef.current);
+					// Trigger another remount by updating the state again
+					setAutofillData({ ...pendingAutofillRef.current });
+				} else {
+					console.log("[Autofill] Elements are ready, no retry needed");
+					retryCountRef.current = 0; // Reset retry count on success
+				}
+			}, delay);
+		} else {
+			console.warn("[Autofill] Max retries reached. Elements may not be ready.");
+		}
+	}, [autofillData]);
 
 	useDidUpdate(() => {
 		transition(async () => {
@@ -281,9 +343,14 @@ const PaymentForm = ({
 							}
 						: undefined
 				}
-				onReady={() => setIsLinkAuthenticationReady(true)}
+				onReady={() => {
+					console.log("[Autofill] LinkAuthenticationElement ready. Email defaultValue:", autofillData?.email);
+					linkAuthReadyRef.current = true;
+					setIsLinkAuthenticationReady(true);
+				}}
 				onChange={(event) => {
 					if (event.complete) {
+						console.log("[Autofill] LinkAuthenticationElement changed to:", event.value.email);
 						setEmail(event.value.email);
 					}
 				}}
@@ -319,6 +386,7 @@ const PaymentForm = ({
 						return;
 					}
 
+					console.log("[Autofill] AddressElement changed:", e.value);
 					setBillingAddressValues({
 						name: e.value.name,
 						city: e.value.address.city,
@@ -332,7 +400,15 @@ const PaymentForm = ({
 						email: email,
 					});
 				}}
-				onReady={() => setIsAddressReady(true)}
+				onReady={() => {
+					console.log("[Autofill] AddressElement ready. DefaultValues:", {
+						name: autofillData?.name,
+						address: autofillData?.address,
+						phone: autofillData?.phone,
+					});
+					addressReadyRef.current = true;
+					setIsAddressReady(true);
+				}}
 			/>
 
 			{readyToRender && !allProductsDigital && (
