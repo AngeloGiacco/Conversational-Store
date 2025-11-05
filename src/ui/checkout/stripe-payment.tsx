@@ -166,10 +166,11 @@ const PaymentForm = ({
 	// Handle autofill data changes with retry logic
 	useEffect(() => {
 		if (!autofillData) {
+			console.log("[Autofill] autofillData is null/undefined, skipping");
 			return;
 		}
 
-		console.log("[Autofill] autofillData changed, triggering remount");
+		console.log("[Autofill] autofillData changed:", JSON.stringify(autofillData));
 		console.log("[Autofill] Ready states at remount - LinkAuth:", linkAuthReadyRef.current, "Address:", addressReadyRef.current);
 		console.log("[Autofill] Retry count:", retryCountRef.current);
 
@@ -177,35 +178,41 @@ const PaymentForm = ({
 		linkAuthReadyRef.current = false;
 		addressReadyRef.current = false;
 
-		// Trigger remount
+		// Trigger remount - this will cause a re-render with new autofillData
 		setRemountKey((prev) => {
 			const newKey = prev + 1;
 			console.log("[Autofill] Remount key updated to:", newKey);
 			return newKey;
 		});
 
-		// If elements aren't ready yet and we haven't exceeded retry limit, schedule a retry
+		// Schedule a retry check after Elements have had time to mount
 		const maxRetries = 3;
 		if (retryCountRef.current < maxRetries) {
 			retryCountRef.current += 1;
 			console.log("[Autofill] Scheduling retry check (attempt", retryCountRef.current, "of", maxRetries, ")");
 
 			// Use increasing delays for retries
-			const delays = [100, 300, 500];
-			const delay = delays[retryCountRef.current - 1] || 500;
+			const delays = [150, 350, 600];
+			const delay = delays[retryCountRef.current - 1] || 600;
 
-			setTimeout(() => {
+			const timeoutId = setTimeout(() => {
+				console.log("[Autofill] Retry check executing. Elements ready? LinkAuth:", linkAuthReadyRef.current, "Address:", addressReadyRef.current);
+
 				if (pendingAutofillRef.current && (!linkAuthReadyRef.current || !addressReadyRef.current)) {
-					console.log("[Autofill] Retry triggered - elements still not ready. LinkAuth:", linkAuthReadyRef.current, "Address:", addressReadyRef.current);
-					// Trigger another remount by updating the state again
+					console.log("[Autofill] Retry triggered - forcing remount with fresh data");
+					// Force a new object reference to trigger re-render
 					setAutofillData({ ...pendingAutofillRef.current });
 				} else {
-					console.log("[Autofill] Elements are ready, no retry needed");
+					console.log("[Autofill] Elements are ready or no pending data, resetting retry count");
 					retryCountRef.current = 0; // Reset retry count on success
 				}
 			}, delay);
+
+			// Cleanup timeout if component unmounts or autofillData changes again
+			return () => clearTimeout(timeoutId);
 		} else {
-			console.warn("[Autofill] Max retries reached. Elements may not be ready.");
+			console.warn("[Autofill] Max retries reached. Elements may not be filling properly.");
+			retryCountRef.current = 0; // Reset for next attempt
 		}
 	}, [autofillData]);
 
@@ -330,6 +337,9 @@ const PaymentForm = ({
 		}
 	};
 
+	// Log autofillData before render
+	console.log("[Autofill] Rendering with autofillData:", autofillData, "remountKey:", remountKey);
+
 	return (
 		<form onSubmit={handleSubmit} className="grid gap-4">
 			<LinkAuthenticationElement
@@ -345,6 +355,7 @@ const PaymentForm = ({
 				}
 				onReady={() => {
 					console.log("[Autofill] LinkAuthenticationElement ready. Email defaultValue:", autofillData?.email);
+					console.log("[Autofill] Pending autofill data:", pendingAutofillRef.current);
 					linkAuthReadyRef.current = true;
 					setIsLinkAuthenticationReady(true);
 				}}
@@ -401,11 +412,12 @@ const PaymentForm = ({
 					});
 				}}
 				onReady={() => {
-					console.log("[Autofill] AddressElement ready. DefaultValues:", {
+					console.log("[Autofill] AddressElement ready. DefaultValues from state:", {
 						name: autofillData?.name,
 						address: autofillData?.address,
 						phone: autofillData?.phone,
 					});
+					console.log("[Autofill] Pending autofill data:", pendingAutofillRef.current);
 					addressReadyRef.current = true;
 					setIsAddressReady(true);
 				}}
