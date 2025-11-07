@@ -51,7 +51,7 @@ export function ElevenLabsWidget() {
 		wrapper.className = "desktop";
 
 		const widget = document.createElement("elevenlabs-convai");
-		widget.setAttribute("agent-id", "agent_2601k9anm6s6fvyapeqwm9w91k1e");
+		widget.setAttribute("agent-id", "agent_4501k9d54xk2es7v117n79gnz0cv");
 		widget.setAttribute("variant", "full");
 
 		if (conversationHistory?.hasConversation) {
